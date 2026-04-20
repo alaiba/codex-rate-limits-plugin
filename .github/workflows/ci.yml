@@ -13,8 +13,5 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - name: Compile Python sources
-        run: |
-          python -m py_compile \
-            devel/codex-rate-limits.py \
-            plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py
+      - name: Run repo quality gate
+        run: make quality
