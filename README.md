@@ -1,32 +1,40 @@
 # Codex Rate Limits Plugin
 
-`codex-rate-limits-plugin` is a standalone GitHub-ready home for the `codex-rate-limits` Codex plugin.
+`codex-rate-limits-plugin` is a standalone repository for the `codex-rate-limits` Codex plugin.
 
-The plugin reads the current Codex ChatGPT subscription rate-limit windows from the local `codex app-server` JSON-RPC API and formats the `5h` and `Weekly` windows for quick answers.
+The plugin reports current Codex ChatGPT subscription rate-limit windows by querying the local `codex app-server` JSON-RPC API and formatting the `5h` and `Weekly` windows for quick answers.
 
-## Layout
+## What this repo contains
 
-- `plugins/codex-rate-limits/` contains the installable plugin package.
-- `plugins/codex-rate-limits/skills/check-codex-rate-limits/` contains the skill, runtime helper, and protocol notes.
-- `devel/codex-rate-limits.py` is the original developer oracle moved out of Arcogine for comparison and debugging.
-- `docs/codex-rate-limits-skill-plugin-plan.md` is the historical extraction plan carried over with the source material.
-- `.agents/plugins/marketplace.json` provides a repo-local marketplace entry for development.
+- `plugins/codex-rate-limits/` - the installable local plugin package.
+- `plugins/codex-rate-limits/skills/check-codex-rate-limits/` - the skill definition, helper script, and protocol reference.
+- `devel/codex-rate-limits.py` - the original developer utility retained as a validation oracle.
+- `docs/codex-rate-limits-skill-plugin-plan.md` - the extracted design and implementation plan.
+- `.agents/plugins/marketplace.json` - a repo-local marketplace entry for plugin discovery during development.
 
-## Local Validation
+## Quickstart
 
-Run the helper directly:
+Run the bundled helper directly:
 
 ```bash
 python3 plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py --utc
 ```
 
-Compare with the moved oracle:
+If you want JSON output:
+
+```bash
+python3 plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py --json --utc
+```
+
+## Validation
+
+Compare the plugin helper against the developer oracle:
 
 ```bash
 python3 devel/codex-rate-limits.py --json --utc
 ```
 
-Compare the packaged helper and oracle together:
+Compare outputs programmatically:
 
 ```bash
 python3 - <<'PY'
@@ -51,7 +59,7 @@ print(json.loads(oracle)["primary"])
 PY
 ```
 
-Syntax-check both scripts:
+Syntax-check the helper and oracle:
 
 ```bash
 python3 -m py_compile \
@@ -59,7 +67,7 @@ python3 -m py_compile \
   plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py
 ```
 
-Exercise one unsupported path with no auth:
+Test the unsupported/no-auth path:
 
 ```bash
 tmpdir="$(mktemp -d)"
@@ -67,8 +75,10 @@ CODEX_HOME="$tmpdir" \
 python3 plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py --json --utc
 ```
 
-## GitHub Setup
+## Repository layout
 
-1. Create a new GitHub repository named `codex-rate-limits-plugin`.
-2. Push this directory as that repository's root.
-3. Update plugin metadata in `plugins/codex-rate-limits/.codex-plugin/plugin.json` if you want repo-specific URLs or publisher details.
+- `plugins/codex-rate-limits/.codex-plugin/plugin.json` - local plugin manifest.
+- `plugins/codex-rate-limits/skills/check-codex-rate-limits/SKILL.md` - skill definition for checking rate limits.
+- `plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py` - packaged helper that makes the JSON-RPC call.
+- `plugins/codex-rate-limits/skills/check-codex-rate-limits/references/app-server-contract.md` - protocol reference for the local app-server API.
+
