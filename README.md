@@ -8,8 +8,8 @@ The plugin reports current Codex ChatGPT subscription rate-limit windows by quer
 
 - `plugins/codex-rate-limits/` - the installable local plugin package.
 - `plugins/codex-rate-limits/skills/check-codex-rate-limits/` - the skill definition, helper script, and protocol reference.
-- `devel/codex-rate-limits.py` - the original developer utility retained as a validation oracle.
-- `docs/codex-rate-limits-skill-plugin-plan.md` - the extracted design and implementation plan.
+- `docs/ARCHITECTURE.md` - the canonical runtime design, constraints, and compatibility notes.
+- `docs/DISTRIBUTION.md` - the canonical packaging and rollout guidance.
 - `.agents/plugins/marketplace.json` - a repo-local marketplace entry for plugin discovery during development.
 
 ## Quickstart
@@ -35,43 +35,10 @@ python3 scripts/quality.py ci
 python3 scripts/quality.py local
 ```
 
-Compare the plugin helper against the developer oracle:
+Syntax-check the packaged helper:
 
 ```bash
-python3 devel/codex-rate-limits.py --json --utc
-```
-
-Compare outputs programmatically:
-
-```bash
-python3 - <<'PY'
-import json
-import subprocess
-
-plugin = subprocess.check_output(
-    [
-        "python3",
-        "plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py",
-        "--json",
-        "--utc",
-    ],
-    text=True,
-)
-oracle = subprocess.check_output(
-    ["python3", "devel/codex-rate-limits.py", "--json", "--utc"],
-    text=True,
-)
-print(json.loads(plugin)["primary"])
-print(json.loads(oracle)["primary"])
-PY
-```
-
-Syntax-check the helper and oracle:
-
-```bash
-python3 -m py_compile \
-  devel/codex-rate-limits.py \
-  plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py
+python3 -m py_compile plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py
 ```
 
 Test the unsupported/no-auth path:
@@ -79,6 +46,8 @@ Test the unsupported/no-auth path:
 ```bash
 python3 scripts/quality.py local
 ```
+
+For live authenticated validation and prompt-routing checks, use [docs/TESTING.md](docs/TESTING.md).
 
 ## Repository layout
 
