@@ -28,6 +28,13 @@ python3 plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_ra
 
 ## Validation
 
+Run the repo quality entrypoints:
+
+```bash
+python3 scripts/quality.py quality
+python3 scripts/quality.py quality-full
+```
+
 Compare the plugin helper against the developer oracle:
 
 ```bash
@@ -70,9 +77,7 @@ python3 -m py_compile \
 Test the unsupported/no-auth path:
 
 ```bash
-tmpdir="$(mktemp -d)"
-CODEX_HOME="$tmpdir" \
-python3 plugins/codex-rate-limits/skills/check-codex-rate-limits/scripts/read_rate_limits.py --json --utc
+python3 scripts/quality.py quality-full
 ```
 
 ## Repository layout
