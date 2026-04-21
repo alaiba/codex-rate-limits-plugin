@@ -14,7 +14,6 @@ import tempfile
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-ORACLE = REPO_ROOT / "devel" / "codex-rate-limits.py"
 HELPER = (
     REPO_ROOT
     / "plugins"
@@ -51,11 +50,6 @@ def run_check(name: str, func: callable) -> None:
 def compile_python() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = pathlib.Path(tmpdir)
-        py_compile.compile(
-            str(ORACLE),
-            cfile=str(tmpdir_path / "oracle.pyc"),
-            doraise=True,
-        )
         py_compile.compile(
             str(HELPER),
             cfile=str(tmpdir_path / "helper.pyc"),

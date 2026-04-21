@@ -8,12 +8,13 @@ Send these requests in order:
 
 1. `initialize`
    - `clientInfo.name`: `codex-rate-limits`
-   - `capabilities.experimentalApi`: `true`
+   - `clientInfo.version`: `1`
 2. `account/read`
-   - `refreshToken: true`
+   - `params: {}`
 3. `account/rateLimits/read`
+   - `params: {}`
 
-The helper waits for the `account/read` and `account/rateLimits/read` responses and ignores non-JSON output on stdout.
+Launch the local runtime as `codex app-server`. The helper waits for the `account/read` and `account/rateLimits/read` responses, ignores non-JSON stdout lines, and separately collects stderr so timeout errors can include the latest diagnostic line.
 
 ## Normalization rules
 
@@ -23,17 +24,19 @@ The helper waits for the `account/read` and `account/rateLimits/read` responses 
 - `remaining_percent` is computed as `max(0, 100 - usedPercent)`.
 - `resetsAt` is exposed both as `resets_at_unix` and as a formatted `resets_at` string.
 - `plan_type` prefers `rateLimits.planType` and falls back to `account.planType`.
-- The helper preserves the raw `account/rateLimits/read` payload under `raw` for debugging and oracle comparison.
+- `rate_limit_reached_type` is preserved when present.
+- The helper preserves the raw `account/rateLimits/read` payload under `raw` for debugging.
 
 ## Failure semantics
 
 - Missing `codex` binary: fail immediately with an explicit PATH error.
 - Missing app-server pipes: fail immediately rather than pretending the request ran.
-- `account/read` error: instruct the user to sign in with `codex login`.
-- `account/rateLimits/read` authentication failure: instruct the user to sign in with `codex login`.
-- Other `account/rateLimits/read` errors: treat the environment as unsupported for ChatGPT subscription rate limits and do not guess values.
-- Timeout waiting for responses: report timeout and suggest checking local Codex installation and login state.
+- `account/read` error, or any error text that indicates authentication is required: instruct the user to sign in with `codex login`.
+- Other `account/rateLimits/read` errors: treat the environment as unsupported for ChatGPT subscription limits or as an account-access gap, and do not guess values.
+- Timeout waiting for responses: report timeout and suggest checking local Codex installation and login state before retrying.
 
-## Validation oracle
+## Output conventions
 
-`devel/codex-rate-limits.py` is the repo-local oracle for comparison during validation. The packaged skill must remain self-contained and must not depend on that file at runtime.
+- Use UTC timestamps when the helper is run with `--utc`; otherwise use local time.
+- Human output mentions both `5h` and `Weekly` when those windows are present.
+- Keep the reported values focused on ChatGPT subscription usage windows, not unrelated API throughput limits.
