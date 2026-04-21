@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import selectors
+import queue
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -43,6 +44,30 @@ def parse_args() -> argparse.Namespace:
 def fail(message: str, exit_code: int = 1) -> "NoReturn":
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(exit_code)
+
+
+def resolve_codex_command() -> list[str]:
+    if sys.platform == "win32":
+        codex_exe = shutil.which("codex.exe")
+        if codex_exe:
+            return [codex_exe]
+
+        codex_ps1 = shutil.which("codex.ps1")
+        if codex_ps1:
+            return [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                codex_ps1,
+            ]
+
+    codex = shutil.which("codex")
+    if codex:
+        return [codex]
+
+    fail("`codex` was not found on PATH")
 
 
 def format_reset_timestamp(timestamp: int | None, use_utc: bool) -> str | None:
@@ -113,13 +138,21 @@ def build_report(account: dict[str, Any] | None, rate_limits: dict[str, Any], us
     }
 
 
-def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-    codex = shutil.which("codex")
-    if not codex:
-        fail("`codex` was not found on PATH")
+def enqueue_stream_lines(
+    stream: Any,
+    stream_name: str,
+    sink: "queue.Queue[tuple[str, str | None]]",
+) -> None:
+    try:
+        for line in iter(stream.readline, ""):
+            sink.put((stream_name, line.rstrip("\n")))
+    finally:
+        sink.put((stream_name, None))
 
+
+def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     proc = subprocess.Popen(
-        [codex, "app-server", "--listen", "stdio://"],
+        [*resolve_codex_command(), "app-server"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -130,9 +163,19 @@ def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, An
     if proc.stdin is None or proc.stdout is None or proc.stderr is None:
         fail("failed to open pipes to `codex app-server`")
 
-    selector = selectors.DefaultSelector()
-    selector.register(proc.stdout, selectors.EVENT_READ, "stdout")
-    selector.register(proc.stderr, selectors.EVENT_READ, "stderr")
+    events: "queue.Queue[tuple[str, str | None]]" = queue.Queue()
+    stdout_thread = threading.Thread(
+        target=enqueue_stream_lines,
+        args=(proc.stdout, "stdout", events),
+        daemon=True,
+    )
+    stderr_thread = threading.Thread(
+        target=enqueue_stream_lines,
+        args=(proc.stderr, "stderr", events),
+        daemon=True,
+    )
+    stdout_thread.start()
+    stderr_thread.start()
 
     requests = [
         {
@@ -142,12 +185,7 @@ def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, An
             "params": {
                 "clientInfo": {
                     "name": "codex-rate-limits",
-                    "title": "Codex Rate Limits",
                     "version": "1",
-                },
-                "capabilities": {
-                    "experimentalApi": True,
-                    "optOutNotificationMethods": [],
                 },
             },
         },
@@ -155,12 +193,13 @@ def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, An
             "jsonrpc": "2.0",
             "id": 2,
             "method": "account/read",
-            "params": {"refreshToken": True},
+            "params": {},
         },
         {
             "jsonrpc": "2.0",
             "id": 3,
             "method": "account/rateLimits/read",
+            "params": {},
         },
     ]
 
@@ -178,27 +217,25 @@ def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, An
                 break
 
             remaining = max(0.0, deadline - time.monotonic())
-            events = selector.select(timeout=min(0.25, remaining))
-            if not events:
+            try:
+                stream_name, line = events.get(timeout=min(0.25, remaining))
+            except queue.Empty:
                 continue
 
-            for key, _ in events:
-                stream = key.fileobj
-                line = stream.readline()
-                if not line:
-                    continue
+            if line is None:
+                continue
 
-                if key.data == "stderr":
-                    stderr_lines.append(line.rstrip("\n"))
-                    continue
+            if stream_name == "stderr":
+                stderr_lines.append(line)
+                continue
 
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
-                if "id" in payload:
-                    responses[payload["id"]] = payload
+            if "id" in payload:
+                responses[payload["id"]] = payload
 
         if 2 not in responses or 3 not in responses:
             details = ""
@@ -218,12 +255,16 @@ def call_app_server(timeout: float) -> tuple[dict[str, Any] | None, dict[str, An
         rate_limits = rate_limit_response["result"]
         return account, rate_limits
     finally:
+        if proc.stdin is not None:
+            proc.stdin.close()
         proc.terminate()
         try:
             proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=2)
+        stdout_thread.join(timeout=0.5)
+        stderr_thread.join(timeout=0.5)
 
 
 def print_human(report: dict[str, Any]) -> None:

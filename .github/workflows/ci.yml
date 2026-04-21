@@ -14,4 +14,4 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run repo quality gate
-        run: make quality
+        run: python3 scripts/quality.py quality
