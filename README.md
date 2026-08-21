@@ -1,3 +1,5 @@
+> **⚠️ Archived / no longer maintained.** This repository is obsolete and not receiving updates.
+
 # Codex Rate Limits Plugin
 
 `codex-rate-limits-plugin` is a standalone repository for the `codex-rate-limits` Codex plugin.
